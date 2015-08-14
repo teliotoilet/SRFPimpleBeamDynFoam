@@ -1,0 +1,3 @@
+SRFPimpleBeamDynFoam.C
+
+EXE = $(FOAM_APPBIN)/SRFPimpleBeamDynFoam
