@@ -120,7 +120,7 @@ namespace BD
         delete r_ptr;
         delete [] h_ptr;
 
-        if (Pstream::master)
+        if (Pstream::master())
         {
             loadFile.close();
             dispFile.close();
