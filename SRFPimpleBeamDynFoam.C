@@ -44,6 +44,7 @@ Description
 #include "singlePhaseTransportModel.H"
 #include "turbulenceModel.H"
 #include "pimpleControl.H"
+#include "SRFModel.H"
 #include "fvIOoptionList.H"
 
 // additional includes
@@ -58,6 +59,7 @@ int main(int argc, char *argv[])
 {
     #include "setRootCase.H"
     #include "createTime.H"
+    //#include "createMesh.H" // SRFPimpleFoam, "stationary" mesh
 
     double t0 = runTime.startTime().value();
     double dt = runTime.deltaT().value();
@@ -68,7 +70,7 @@ int main(int argc, char *argv[])
     pimpleControl pimple(mesh);
 
     #include "createFields.H"
-    #include "createUf.H"
+    #include "createUrelf.H"
     #include "createFvOptions.H"
     #include "readTimeControls.H"
     #include "createPcorrTypes.H"
@@ -94,7 +96,7 @@ int main(int argc, char *argv[])
 
     while (runTime.run())
     {
-        #include "readControls.H"
+        #include "readControls.H" // calls readTimeControls.H
         #include "CourantNo.H"
 
         #include "setDeltaT.H"
@@ -117,7 +119,7 @@ int main(int argc, char *argv[])
         if (fluidSolve)
         {
             // Calculate absolute flux from the mapped surface velocity
-            phi = mesh.Sf() & Uf;
+            phi = mesh.Sf() & Urelf;
 
             if (mesh.changing() && correctPhi)
             {
@@ -125,7 +127,7 @@ int main(int argc, char *argv[])
             }
 
             // Make the flux relative to the mesh motion
-            fvc::makeRelative(phi, U);
+            fvc::makeRelative(phi, Urel);
         }
 
         if (mesh.changing() && checkMeshCourantNo)
@@ -138,13 +140,16 @@ int main(int argc, char *argv[])
             // --- Pressure-velocity PIMPLE corrector loop
             while (pimple.loop())
             {
-                #include "UEqn.H"
+                #include "UrelEqn.H"
 
                 // --- Pressure corrector loop
                 while (pimple.correct())
                 {
                     #include "pEqn.H"
                 }
+
+                // Update the absolute velocity (from SRFPimpleFoam)
+                U = Urel + SRF->U();
 
                 if (pimple.turbCorr())
                 {

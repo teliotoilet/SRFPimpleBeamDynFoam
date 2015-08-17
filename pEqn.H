@@ -1,32 +1,44 @@
-surfaceScalarField rAUf("rAUf", fvc::interpolate(rAU));
+surfaceScalarField rAUrelf("rAUrelf", fvc::interpolate(rAUrel));
 
-volVectorField HbyA("HbyA", U);
-HbyA = rAU*UEqn().H();
+volVectorField HbyA("HbyA", Urel);
+HbyA = rAUrel*UrelEqn().H(); // H/A = "H operation source" divided by the
+                             //       "central coefficient"
+// note: H is the RHS momentum terms excluding pressure
+//       == S - sum_over_neighbor_cells{A*U}
+//       where S is the discretization source term (i.e. RHS terms?)
+//             A is the matrix coefficient
+//             U is the uncorrected velocity
+//
+//       The momentum equation == H - grad{p}
+//       ref: http://openfoamwiki.net/index.php/OpenFOAM_guide/H_operator
 
 if (pimple.nCorrPISO() <= 1)
 {
-    UEqn.clear();
+    UrelEqn.clear();
 }
 
 surfaceScalarField phiHbyA
 (
     "phiHbyA",
     (fvc::interpolate(HbyA) & mesh.Sf())
-  + rAUf*fvc::ddtCorr(U, Uf)
+  + rAUrelf*fvc::ddtCorr(Urel, Urelf) //SRFPimpleFoam: ddtCorr(Urel,phi)
 );
 
-if (p.needReference())
+if (p.needReference()) // not in SRFPimpleFoam
 {
-    fvc::makeRelative(phiHbyA, U);
-    adjustPhi(phiHbyA, U, p);
-    fvc::makeAbsolute(phiHbyA, U);
+    fvc::makeRelative(phiHbyA, Urel); // not in SRFPimpleFoam
+    adjustPhi(phiHbyA, Urel, p);
+    fvc::makeAbsolute(phiHbyA, Urel); // not in SRFPimpleFoam
 }
 
+// Non-orthogonal pressure corrector loop
 while (pimple.correctNonOrthogonal())
 {
+    // Pressure corrector
     fvScalarMatrix pEqn
     (
-        fvm::laplacian(rAUf, p) == fvc::div(phiHbyA)
+        // SRFPimpleFoam uses rAUrel, not interpolated rAUrel
+        fvm::laplacian(rAUrelf, p) == fvc::div(phiHbyA)
     );
 
     pEqn.setReference(pRefCell, pRefValue);
@@ -35,7 +47,7 @@ while (pimple.correctNonOrthogonal())
 
     if (pimple.finalNonOrthogonalIter())
     {
-        phi = phiHbyA - pEqn.flux();
+        phi = phiHbyA - pEqn.flux(); // same as SRFPimpleFoam
     }
 }
 
@@ -44,15 +56,18 @@ while (pimple.correctNonOrthogonal())
 // Explicitly relax pressure for momentum corrector
 p.relax();
 
-U = HbyA - rAU*fvc::grad(p);
-U.correctBoundaryConditions();
-fvOptions.correct(U);
+// Momentum corrector
+Urel = HbyA - rAUrel*fvc::grad(p);
+Urel.correctBoundaryConditions();
+fvOptions.correct(Urel);
 
-{
-    Uf = fvc::interpolate(U);
+{ // not in SRFPimpleFoam
+    // for non-moving meshes, Urelf should be equal to phi...
+    Urelf = fvc::interpolate(Urel);
     surfaceVectorField n(mesh.Sf()/mesh.magSf());
-    Uf += n*(phi/mesh.magSf() - (n & Uf));
+    Urelf += n*(phi/mesh.magSf() - (n & Urelf));
 }
 
 // Make the fluxes relative to the mesh motion
-fvc::makeRelative(phi, U);
+fvc::makeRelative(phi, Urel); // not in SRFPimpleFoam
+

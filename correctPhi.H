@@ -1,21 +1,21 @@
 if (mesh.changing())
 {
-    forAll(U.boundaryField(), patchI)
+    forAll(Urel.boundaryField(), patchI)
     {
-        if (U.boundaryField()[patchI].fixesValue())
+        if (Urel.boundaryField()[patchI].fixesValue())
         {
-            U.boundaryField()[patchI].initEvaluate();
+            Urel.boundaryField()[patchI].initEvaluate();
         }
     }
 
-    forAll(U.boundaryField(), patchI)
+    forAll(Urel.boundaryField(), patchI)
     {
-        if (U.boundaryField()[patchI].fixesValue())
+        if (Urel.boundaryField()[patchI].fixesValue())
         {
-            U.boundaryField()[patchI].evaluate();
+            Urel.boundaryField()[patchI].evaluate();
 
             phi.boundaryField()[patchI] =
-                U.boundaryField()[patchI]
+                Urel.boundaryField()[patchI]
               & mesh.Sf().boundaryField()[patchI];
         }
     }
@@ -37,13 +37,13 @@ if (mesh.changing())
         pcorrTypes
     );
 
-    dimensionedScalar rAUf("rAUf", dimTime, 1.0);
+    dimensionedScalar rAUrelf("rAUrelf", dimTime, 1.0);
 
     while (pimple.correctNonOrthogonal())
     {
         fvScalarMatrix pcorrEqn
         (
-            fvm::laplacian(rAUf, pcorr) == fvc::div(phi)
+            fvm::laplacian(rAUrelf, pcorr) == fvc::div(phi)
         );
 
         pcorrEqn.setReference(pRefCell, pRefValue);

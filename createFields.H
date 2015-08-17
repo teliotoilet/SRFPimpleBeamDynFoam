@@ -12,12 +12,12 @@ volScalarField p
     mesh
 );
 
-Info<< "Reading field U\n" << endl;
-volVectorField U
+Info<< "Reading field Urel\n" << endl;
+volVectorField Urel
 (
     IOobject
     (
-        "U",
+        "Urel",
         runTime.timeName(),
         mesh,
         IOobject::MUST_READ,
@@ -26,17 +26,48 @@ volVectorField U
     mesh
 );
 
-#include "createPhi.H"
-
+//#include "createPhi.H"
+Info<< "Reading/calculating face flux field phi\n" << endl;
+surfaceScalarField phi
+(
+    IOobject
+    (
+        "phi",
+        runTime.timeName(),
+        mesh,
+        IOobject::READ_IF_PRESENT,
+        IOobject::AUTO_WRITE
+    ),
+    linearInterpolate(Urel) & mesh.Sf()
+);
 
 label pRefCell = 0;
 scalar pRefValue = 0.0;
 setRefCell(p, mesh.solutionDict().subDict("PIMPLE"), pRefCell, pRefValue);
 
-
-singlePhaseTransportModel laminarTransport(U, phi);
+singlePhaseTransportModel laminarTransport(Urel, phi);
 
 autoPtr<incompressible::turbulenceModel> turbulence
 (
-    incompressible::turbulenceModel::New(U, phi, laminarTransport)
+    incompressible::turbulenceModel::New(Urel, phi, laminarTransport)
+);
+
+Info<< "Creating SRF model\n" << endl;
+autoPtr<SRF::SRFModel> SRF
+(
+    SRF::SRFModel::New(Urel)
+);
+
+// Create the absolute velocity
+volVectorField U
+(
+    IOobject
+    (
+        "U",
+        runTime.timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::AUTO_WRITE
+    ),
+    Urel + SRF->U()
 );
